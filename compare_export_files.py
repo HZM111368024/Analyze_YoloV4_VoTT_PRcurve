@@ -13,8 +13,7 @@ def drawBbox(picName, folderName, vottBbox):
     folder = os.path.exists(path)
 
     print(imagePath + "\\" + picName)
-    img = cv2.imread(imagePath + "\\" +picName )
-    print(img)
+    img = cv2.imread(imagePath + "\\" + picName)
     if img is not None:
         for v in vottBbox:
             # bbox
@@ -51,8 +50,6 @@ def getLast(vottJson, maskRcnnJson):
 def calculateIoU(VoTT_bbox, MR_bbox):
     VoTT_bbox = [int(x) for x in VoTT_bbox]
     MR_bbox = [int(x) for x in MR_bbox]
-    print(VoTT_bbox)
-    print(MR_bbox)
     xA = max(VoTT_bbox[0], MR_bbox[0])
     yA = max(VoTT_bbox[1], MR_bbox[1])
     xB = min(VoTT_bbox[2], MR_bbox[2])
@@ -61,12 +58,7 @@ def calculateIoU(VoTT_bbox, MR_bbox):
     interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
     VoTTArea = (VoTT_bbox[2] - VoTT_bbox[0] + 1) * (VoTT_bbox[3] - VoTT_bbox[1] + 1)
     MRArea = (MR_bbox[2] - MR_bbox[0] + 1) * (MR_bbox[3] - MR_bbox[1] + 1)
-    print(xA,yA,xB,yB)
-    print(interArea)
-    print(VoTTArea)
-    print(MRArea)
     iou = interArea / float(VoTTArea + MRArea - interArea)
-    print(iou)
     return iou
 
 
@@ -141,6 +133,9 @@ def compareResult(vottJson, maskRcnnJson):
     time = 0
     count = 0
     tmp = 0
+
+    global Precision_count
+    global Recall_count
     # 比對結果
     result = {}
     result['result'] = []
@@ -161,7 +156,6 @@ def compareResult(vottJson, maskRcnnJson):
             if vott['timestamp'] == mask['timestamp']:
                 detection = True
                 # 畫圖
-                print(vott['name'])
                 if storageBbox == 'True':
                     drawBbox(vott['name'], vottJson['name'], vott['boundingBox'])
                 # Model 共標記
@@ -169,16 +163,10 @@ def compareResult(vottJson, maskRcnnJson):
                 # 計算IOU
                 bbox_count = 0
                 catch = False
-                print(mask['count'])
-                print(vott['boundingBox'])
                 for vott_bbox in vott['boundingBox']:
-                    print("in for loop")
                     if catch == False:
                         item = 0
-                    print(mask['count'])
-                    print(item)
                     while item < mask['count']:
-                        print("selet IOU or CIOU")
                         if loss.lower() == 'ciou':
                             iou_number = calculateCIoU(vott_bbox, mask['boundingBox'][item])
                         elif loss.lower() == 'iou':
@@ -191,46 +179,55 @@ def compareResult(vottJson, maskRcnnJson):
                             bbox_count = bbox_count + 1
                             break
                         item = item + 1
-
+                print('Name :' + str(vott['name']))
+                print('VoTT :' + str(vott['count']))
+                print('Yolo :' + str(mask['count']))
                 IoU_result['TP'] = bbox_count  # VoTT 跟 Model偵測的框有重疊
                 IoU_result['FP'] = mask['count'] - bbox_count  # Model有框到 但VoTT沒有 (偵測錯誤)
                 IoU_result['FN'] = vott['count'] - bbox_count  # VoTT有框到 但Model沒有 (無偵測到)
-                print('TP:' + str(IoU_result['TP']))
-                print('FP:' + str(IoU_result['FP']))
-                print('FN:' + str(IoU_result['FN']))
+                print('TP :' + str(IoU_result['TP']))
+                print('FP :' + str(IoU_result['FP']))
+                print('FN :' + str(IoU_result['FN']))
 
-                if (IoU_result['TP'] + IoU_result['FP'])!= 0:
-                    IoU_result['Precision'] = IoU_result['TP'] / (IoU_result['TP'] + IoU_result['FP'])
-                else :
-                    IoU_result['Precision'] = 1
+                if vott['count'] > 0:
+                    if (IoU_result['TP'] + IoU_result['FN']) != 0:
+                        IoU_result['Recall'] = IoU_result['TP'] / (IoU_result['TP'] + IoU_result['FN'])
 
-                if IoU_result['Precision'] > 1.0:
-                    IoU_result['Precision'] = 1.0
+                    if IoU_result['Recall'] > 1.0:
+                        IoU_result['Recall'] = 1.0
 
-                if (IoU_result['TP'] + IoU_result['FN']) != 0:
-                    IoU_result['Recall'] = IoU_result['TP'] / (IoU_result['TP'] + IoU_result['FN'])
+                    Recall_count += 1
                 else:
-                    IoU_result['Recall'] = 1.0
+                    print('Recall : None')
 
-                if IoU_result['Recall'] > 1.0:
-                    IoU_result['Recall'] = 1.0
-                totalPrecision = totalPrecision + IoU_result['Precision']
-                totalRecall = totalRecall + IoU_result['Recall']
+                if mask['count'] != 0:
+                    if (IoU_result['TP'] + IoU_result['FP']) != 0:
+                        IoU_result['Precision'] = IoU_result['TP'] / (IoU_result['TP'] + IoU_result['FP'])
+
+                    if IoU_result['Precision'] > 1.0:
+                        IoU_result['Precision'] = 1.0
+
+                    Precision_count += 1
+                else:
+                    print('Precision : None')
+
+                print('totalRecall : ' + str(totalRecall))
+                print('totalPrecision : ' + str(totalPrecision))
+                print('Precision_count : ' + str(Precision_count))
+                print('Recall_count : ' + str(Recall_count))
+                print("----------------------------------")
+
+                if vott['count'] > 0:
+                    totalRecall = totalRecall + IoU_result['Recall']
+
+                if vott['count'] != 0 and mask['count'] != 0:
+                    totalPrecision = totalPrecision + IoU_result['Precision']
+
                 result['result'].append(IoU_result)
                 break
 
-        if detection == False:
-            IoU_result['Model'] = 0  # Model沒有偵測到人物
-            IoU_result['TP'] = 0
-            IoU_result['FP'] = 0
-            IoU_result['Precision'] = 0
-            IoU_result['Recall'] = 0
-            totalPrecision = totalPrecision + IoU_result['Precision']
-            totalRecall = totalRecall + IoU_result['Recall']
-            result['result'].append(IoU_result)
-
-    result['Precision_Final'] = round(totalPrecision / len(vottJson['regions']), 2)
-    result['Recall_Final'] = round(totalRecall / len(vottJson['regions']), 2)
+    result['Precision_Final'] = round(totalPrecision / Precision_count, 2)
+    result['Recall_Final'] = round(totalRecall / Recall_count, 2)
     return result
 
 
@@ -245,13 +242,15 @@ if __name__ == '__main__':
     # > python compare_export_files.py E:\\Auto_Calculate\\Drone_019_auto_calculate_the_items.json F:\\Yolov3_Calculate\\Drone_019.json F:\\MaskRCNN_Compare_Image IoU True
     # 執行時輸入兩個要比較的JSON檔案位置
 
-    storageBbox = sys.argv[5]  # 是否要存照片
-    loss = sys.argv[4]  # 損失函數
-    imagePath = sys.argv[3]  # 圖片位置
     filePath_1 = sys.argv[1]  # VoTT
     filePath_2 = sys.argv[2]  # MaskRCNN / YoloV4 / YoloV3
+    imagePath = sys.argv[3]  # 圖片位置
+    loss = sys.argv[4]  # 損失函數
+    storageBbox = sys.argv[5]  # 是否要存照片
     vottJson = read_json_file(filePath_1)
     maskRcnnJson = read_json_file(filePath_2)
+    Recall_count = 0
+    Precision_count = 0
     finalResult = compareResult(vottJson, maskRcnnJson)
 
     print(finalResult)
